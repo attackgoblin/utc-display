@@ -78,12 +78,11 @@
       color: #ff6347;
     }
 
-    /* 차트를 담는 래퍼 */
+    /* 차트를 담는 래퍼 (고정 높이) */
     .sparkline-container {
       width: 100%;
-      height: 80px;      /* 고정 높이 */
-      position: relative; 
-      /* position: relative를 쓰면 내부 canvas가 이를 기준으로 100% 차지 */
+      height: 80px;
+      position: relative;
     }
     .sparkline-container canvas {
       display: block;
@@ -115,13 +114,13 @@
       <!-- BTC Card -->
       <div class="col-12 col-md-6 mb-3">
         <div class="card text-center">
-          <div class="card-header">
-            BTC
-          </div>
+          <div class="card-header">BTC</div>
           <div class="card-body">
             <h5 class="card-title" id="btc-price">Loading...</h5>
             <p class="card-text" id="btc-change">24h Change: -</p>
-            <!-- 작은 라인 차트 래퍼 -->
+            <!-- Volume -->
+            <p class="card-text" id="btc-volume">24h Volume: -</p>
+            <!-- 작은 라인 차트 (스파크라인) -->
             <div class="sparkline-container">
               <canvas id="btc-chart"></canvas>
             </div>
@@ -131,13 +130,13 @@
       <!-- DOGE Card -->
       <div class="col-12 col-md-6 mb-3">
         <div class="card text-center">
-          <div class="card-header">
-            DOGE
-          </div>
+          <div class="card-header">DOGE</div>
           <div class="card-body">
             <h5 class="card-title" id="doge-price">Loading...</h5>
             <p class="card-text" id="doge-change">24h Change: -</p>
-            <!-- 작은 라인 차트 래퍼 -->
+            <!-- Volume -->
+            <p class="card-text" id="doge-volume">24h Volume: -</p>
+            <!-- 작은 라인 차트 (스파크라인) -->
             <div class="sparkline-container">
               <canvas id="doge-chart"></canvas>
             </div>
@@ -170,7 +169,7 @@
     let lastSuccessfulUpdate = null;
     let isPaused = false; // if API fails, we pause updates until next attempt
 
-    // Chart.js 인스턴스 보관
+    // Chart.js 인스턴스
     let btcChartInstance = null;
     let dogeChartInstance = null;
 
@@ -179,12 +178,10 @@
      ************************************************************/
     function updateTimes() {
       const now = new Date();
-
-      // Local time (12시간제, am/pm)
+      // Local time
       const localTimeElem = document.getElementById('local-time');
       const localOptions = { hour12: true };
-      const localDateString = now.toLocaleString('en-US', localOptions);
-      localTimeElem.textContent = `Local Time: ${localDateString}`;
+      localTimeElem.textContent = `Local Time: ${now.toLocaleString('en-US', localOptions)}`;
 
       // UTC time
       const utcTimeElem = document.getElementById('utc-time');
@@ -192,12 +189,15 @@
     }
 
     /************************************************************
-     * 2. Fetch BTC, DOGE prices + 24h change (CoinGecko)
+     * 2. Fetch BTC, DOGE prices + 24h change & volume
      ************************************************************/
     async function updatePrices() {
       try {
+        // include_24hr_vol=true 추가
         const url = 'https://api.coingecko.com/api/v3/simple/price?' +
-          'ids=bitcoin,dogecoin&vs_currencies=usd&include_24hr_change=true';
+          'ids=bitcoin,dogecoin&vs_currencies=usd' +
+          '&include_24hr_change=true' +
+          '&include_24hr_vol=true';
         const response = await fetch(url);
 
         if (!response.ok) {
@@ -205,9 +205,17 @@
         }
 
         const data = await response.json();
-        // e.g. {
-        //   "bitcoin": {"usd": 27300, "usd_24h_change": 2.34},
-        //   "dogecoin": {"usd": 0.07, "usd_24h_change": -1.25}
+        // 예: {
+        //   "bitcoin": {
+        //     "usd": 27000,
+        //     "usd_24h_change": 2.34,
+        //     "usd_24h_vol": 1234567890
+        //   },
+        //   "dogecoin": {
+        //     "usd": 0.07,
+        //     "usd_24h_change": -1.25,
+        //     "usd_24h_vol": 123456789
+        //   }
         // }
 
         // BTC
@@ -217,19 +225,15 @@
           maximumFractionDigits: 0
         });
         const btcChange = data.bitcoin.usd_24h_change.toFixed(2);
+        const btcVolRaw = data.bitcoin.usd_24h_vol;
+        const btcVol = Number(btcVolRaw).toLocaleString('en-US'); // 콤마 처리
 
-        // DOGE
-        const dogeRawPrice = data.dogecoin.usd;
-        const dogePrice = Number(dogeRawPrice).toFixed(6);
-        const dogeChange = data.dogecoin.usd_24h_change.toFixed(2);
-
-        // DOM update
         document.getElementById('btc-price').textContent = btcPrice;
-        document.getElementById('doge-price').textContent = dogePrice;
+        document.getElementById('btc-change').textContent = `24h Change: ${btcChange}%`;
+        document.getElementById('btc-volume').textContent = `24h Volume: ${btcVol} USD`;
 
         // 24h Change color
         const btcChangeElem = document.getElementById('btc-change');
-        btcChangeElem.textContent = `24h Change: ${btcChange}%`;
         if (btcChange >= 0) {
           btcChangeElem.classList.add('change-positive');
           btcChangeElem.classList.remove('change-negative');
@@ -238,8 +242,18 @@
           btcChangeElem.classList.remove('change-positive');
         }
 
+        // DOGE
+        const dogeRawPrice = data.dogecoin.usd;
+        const dogePrice = Number(dogeRawPrice).toFixed(6);
+        const dogeChange = data.dogecoin.usd_24h_change.toFixed(2);
+        const dogeVolRaw = data.dogecoin.usd_24h_vol;
+        const dogeVol = Number(dogeVolRaw).toLocaleString('en-US');
+
+        document.getElementById('doge-price').textContent = dogePrice;
+        document.getElementById('doge-change').textContent = `24h Change: ${dogeChange}%`;
+        document.getElementById('doge-volume').textContent = `24h Volume: ${dogeVol} USD`;
+
         const dogeChangeElem = document.getElementById('doge-change');
-        dogeChangeElem.textContent = `24h Change: ${dogeChange}%`;
         if (dogeChange >= 0) {
           dogeChangeElem.classList.add('change-positive');
           dogeChangeElem.classList.remove('change-negative');
@@ -256,8 +270,8 @@
 
         // Last updated time
         lastSuccessfulUpdate = new Date();
-        const updateStatusElem = document.getElementById('update-status');
-        updateStatusElem.textContent = `Last updated: ${lastSuccessfulUpdate.toLocaleTimeString('en-US', { hour12: true })}`;
+        document.getElementById('update-status').textContent =
+          `Last updated: ${lastSuccessfulUpdate.toLocaleTimeString('en-US', { hour12: true })}`;
 
         if (isPaused) {
           isPaused = false;
@@ -274,22 +288,21 @@
      ************************************************************/
     async function updateSparkline(coinId, canvasId, chartInstance, chartInstanceName) {
       try {
-        // 24h 차트
+        // 24h(1일) 차트 데이터
         const chartUrl = `https://api.coingecko.com/api/v3/coins/${coinId}/market_chart?vs_currency=usd&days=1`;
         const res = await fetch(chartUrl);
         if (!res.ok) {
           throw new Error(`Market chart API error: ${res.status}`);
         }
-        const chartData = await res.json();
+        const chartData = await res.json(); 
+        // chartData.prices: [[timestamp, price], ...]
 
         const prices = chartData.prices;
-        // 12개 포인트로 추출
         let step = Math.floor(prices.length / 12);
         if (step < 1) step = 1; // 최소 1 보장
 
         const labels = [];
         const values = [];
-
         for (let i = 0; i < prices.length; i += step) {
           const [timestamp, price] = prices[i];
           const date = new Date(timestamp);
@@ -333,7 +346,6 @@
               }
             }
           });
-          // 전역 변수에 저장
           window[chartInstanceName] = newChart;
         }
       } catch (error) {
@@ -348,7 +360,6 @@
       if (!isPaused) {
         const countdownElem = document.getElementById('countdown');
         countdownElem.textContent = `Next update in: ${timeLeft}s`;
-
         timeLeft--;
         if (timeLeft < 0) {
           updatePrices();
@@ -366,10 +377,10 @@
     updateTimes();
     updatePrices();
 
-    // 시간(로컬/UTC) 1초마다 업데이트
+    // 로컬/UTC 시간 1초 마다 업데이트
     setInterval(updateTimes, 1000);
 
-    // 카운트다운 1초마다 진행
+    // 카운트다운 1초 마다 진행
     setInterval(updateCountdown, 1000);
   </script>
 </body>
