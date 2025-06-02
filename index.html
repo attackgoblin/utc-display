@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <title>UTC Time Display</title>
+</head>
+<body>
+  <h1>UTC Time</h1>
+  <div id="utc-time">Loading...</div>
+
+  <script>
+    function updateUtcTime() {
+      const now = new Date();
+      const utcString = now.toUTCString();
+      document.getElementById('utc-time').textContent = utcString;
+    }
+
+    // 페이지 로드 시 1회 실행
+    updateUtcTime();
+    // 이후 1초 간격으로 갱신
+    setInterval(updateUtcTime, 1000);
+  </script>
+</body>
+</html>
