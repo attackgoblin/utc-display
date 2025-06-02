@@ -2,7 +2,8 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
-  <title>Crypto Info</title>
+  <title>Crypto Info (CoinGecko)</title>
+  <!-- 반응형 웹을 위한 meta 태그 -->
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <!-- Bootstrap CSS (CDN) -->
   <link
@@ -20,26 +21,29 @@
   </style>
 </head>
 <body>
+  <!-- 헤더 영역 -->
   <header class="container mb-4">
     <div class="row">
       <div class="col-12 text-center">
         <h1>Crypto Market Info</h1>
+        <!-- 현지 시간 표시 영역 -->
         <p class="time-display" id="local-time">로컬 시간 불러오는 중...</p>
       </div>
     </div>
   </header>
 
+  <!-- 메인 콘텐츠: 시세 카드 -->
   <main class="container">
     <div class="row justify-content-center">
       <!-- BTC 카드 -->
       <div class="col-12 col-md-6 mb-3">
         <div class="card text-center">
           <div class="card-header">
-            BTCUSDT
+            BTC (비트코인)
           </div>
           <div class="card-body">
             <h5 class="card-title" id="btc-price">Loading...</h5>
-            <p class="card-text">Binance API로부터 BTC/USDT 시세를 가져옵니다.</p>
+            <p class="card-text">CoinGecko API로부터 BTC 시세(USD)를 가져옵니다.</p>
           </div>
         </div>
       </div>
@@ -47,17 +51,18 @@
       <div class="col-12 col-md-6 mb-3">
         <div class="card text-center">
           <div class="card-header">
-            DOGEUSDT
+            DOGE (도지코인)
           </div>
           <div class="card-body">
             <h5 class="card-title" id="doge-price">Loading...</h5>
-            <p class="card-text">Binance API로부터 DOGE/USDT 시세를 가져옵니다.</p>
+            <p class="card-text">CoinGecko API로부터 DOGE 시세(USD)를 가져옵니다.</p>
           </div>
         </div>
       </div>
     </div>
   </main>
 
+  <!-- 푸터 (선택) -->
   <footer class="container mt-4">
     <div class="row">
       <div class="col-12 text-center">
@@ -70,47 +75,47 @@
   <script
     src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"
   ></script>
+
   <!-- 메인 스크립트 -->
   <script>
-    // 로컬 시간 표시
+    // 1. 로컬 시간 표시 함수
     function updateLocalTime() {
       const now = new Date();
       const localTimeElem = document.getElementById('local-time');
-      const dateString = now.toLocaleString();
+      const dateString = now.toLocaleString(); 
       localTimeElem.textContent = `현지 시간: ${dateString}`;
     }
 
-    // 시세 업데이트 (BTC, DOGE)
+    // 2. CoinGecko API를 통해 BTC, DOGE 가격을 가져오는 함수
     async function updatePrices() {
       try {
-        console.log('Fetching BTC price...');
-        const btcResponse = await fetch('https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT');
-        console.log('BTC response:', btcResponse);
-        const btcData = await btcResponse.json();
-        console.log('BTC data:', btcData);
+        // CoinGecko API (BTC, DOGE → USD)
+        // https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,dogecoin&vs_currencies=usd
+        const url = 'https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,dogecoin&vs_currencies=usd';
 
-        console.log('Fetching DOGE price...');
-        const dogeResponse = await fetch('https://api.binance.com/api/v3/ticker/price?symbol=DOGEUSDT');
-        console.log('DOGE response:', dogeResponse);
-        const dogeData = await dogeResponse.json();
-        console.log('DOGE data:', dogeData);
+        const response = await fetch(url);
+        const data = await response.json();
+
+        // data 예시: { "bitcoin": { "usd": 27300 }, "dogecoin": { "usd": 0.07 } }
+        const btcPrice = data.bitcoin.usd;
+        const dogePrice = data.dogecoin.usd;
 
         // DOM에 시세 표시
-        document.getElementById('btc-price').textContent = `${btcData.price} USDT`;
-        document.getElementById('doge-price').textContent = `${dogeData.price} USDT`;
+        document.getElementById('btc-price').textContent = `${btcPrice} USD`;
+        document.getElementById('doge-price').textContent = `${dogePrice} USD`;
       } catch (error) {
         console.error('API 호출 중 에러 발생:', error);
       }
     }
 
-    // 처음 로드 시
+    // 페이지 로딩 시 최초 실행
     updateLocalTime();
     updatePrices();
 
-    // 1초마다 시간 업데이트
+    // 1초마다 시간 갱신
     setInterval(updateLocalTime, 1000);
 
-    // 5초마다 가격 갱신
+    // 5초마다 시세 재조회
     setInterval(updatePrices, 5000);
   </script>
 </body>
