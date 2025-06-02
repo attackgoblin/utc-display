@@ -23,6 +23,18 @@
       font-size: 0.9rem;
       color: #6c757d; /* Bootstrap muted text color */
     }
+    .status-text {
+      font-size: 0.9rem;
+      font-style: italic;
+      margin: 0;
+      color: #6c757d;
+    }
+    .change-positive {
+      color: green;
+    }
+    .change-negative {
+      color: red;
+    }
   </style>
 </head>
 <body>
@@ -31,11 +43,13 @@
     <div class="row">
       <div class="col-12 text-center">
         <h1>Crypto Info</h1>
-        <!-- Time display area (Local + UTC) -->
+        <!-- Time display (Local + UTC) -->
         <p class="time-info" id="local-time">Local Time: -</p>
         <p class="time-info" id="utc-time">UTC Time: -</p>
         <!-- Next update countdown -->
         <p class="countdown" id="countdown">Next update in: 10s</p>
+        <!-- Update status (last update time or error) -->
+        <p class="status-text" id="update-status">Last updated: -</p>
       </div>
     </div>
   </header>
@@ -51,7 +65,7 @@
           </div>
           <div class="card-body">
             <h5 class="card-title" id="btc-price">Loading...</h5>
-            <p class="card-text">Price (USD)</p>
+            <p class="card-text" id="btc-change">24h Change: -</p>
           </div>
         </div>
       </div>
@@ -63,7 +77,7 @@
           </div>
           <div class="card-body">
             <h5 class="card-title" id="doge-price">Loading...</h5>
-            <p class="card-text">Price (USD)</p>
+            <p class="card-text" id="doge-change">24h Change: -</p>
           </div>
         </div>
       </div>
@@ -87,8 +101,11 @@
   <!-- Main Script -->
   <script>
     // Update intervals
-    const PRICE_UPDATE_INTERVAL = 10; // seconds
+    const PRICE_UPDATE_INTERVAL = 10; // in seconds (caution: too short -> 429 error risk)
     let timeLeft = PRICE_UPDATE_INTERVAL;
+
+    let lastSuccessfulUpdate = null;
+    let isPaused = false; // if API fails, we pause updates until next attempt
 
     // 1. Display Local and UTC time
     function updateTimes() {
@@ -102,35 +119,93 @@
       utcTimeElem.textContent = `UTC Time: ${now.toUTCString()}`;
     }
 
-    // 2. Fetch BTC, DOGE prices from CoinGecko
+    // 2. Fetch BTC, DOGE prices and 24h change from CoinGecko
     async function updatePrices() {
       try {
-        const url = 'https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,dogecoin&vs_currencies=usd';
+        // Include 24h change
+        const url = 'https://api.coingecko.com/api/v3/simple/price?' +
+                    'ids=bitcoin,dogecoin&vs_currencies=usd&include_24hr_change=true';
         const response = await fetch(url);
+        
+        // If the server returns an error status (e.g. 429), response.ok will be false
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
         const data = await response.json();
+        // data example:
+        // {
+        //   "bitcoin": {"usd": 27300, "usd_24h_change": 2.34},
+        //   "dogecoin": {"usd": 0.07, "usd_24h_change": -1.25}
+        // }
+        const btcPrice = data.bitcoin.usd.toFixed(4);
+        const btcChange = data.bitcoin.usd_24h_change.toFixed(2);
 
-        // data example: { "bitcoin": { "usd": 27300 }, "dogecoin": { "usd": 0.07 } }
-        const btcPrice = data.bitcoin.usd;
-        const dogePrice = data.dogecoin.usd;
+        const dogePrice = data.dogecoin.usd.toFixed(6);
+        const dogeChange = data.dogecoin.usd_24h_change.toFixed(2);
 
+        // Update DOM
         document.getElementById('btc-price').textContent = btcPrice;
         document.getElementById('doge-price').textContent = dogePrice;
+
+        // 24h 변동률 표시 (+/- 구분)
+        const btcChangeElem = document.getElementById('btc-change');
+        btcChangeElem.textContent = `24h Change: ${btcChange}%`;
+        if (btcChange >= 0) {
+          btcChangeElem.classList.add('change-positive');
+          btcChangeElem.classList.remove('change-negative');
+        } else {
+          btcChangeElem.classList.add('change-negative');
+          btcChangeElem.classList.remove('change-positive');
+        }
+
+        const dogeChangeElem = document.getElementById('doge-change');
+        dogeChangeElem.textContent = `24h Change: ${dogeChange}%`;
+        if (dogeChange >= 0) {
+          dogeChangeElem.classList.add('change-positive');
+          dogeChangeElem.classList.remove('change-negative');
+        } else {
+          dogeChangeElem.classList.add('change-negative');
+          dogeChangeElem.classList.remove('change-positive');
+        }
+
+        // Update lastSuccessfulUpdate
+        lastSuccessfulUpdate = new Date();
+        // Reflect last update time
+        const updateStatusElem = document.getElementById('update-status');
+        updateStatusElem.textContent = `Last updated: ${lastSuccessfulUpdate.toLocaleTimeString()}`;
+        
+        // If previously paused due to error, resume
+        if (isPaused) {
+          isPaused = false;
+        }
       } catch (error) {
         console.error('API Error:', error);
+        // Show error message
+        const updateStatusElem = document.getElementById('update-status');
+        updateStatusElem.textContent = 'Update paused: API Error';
+        // Pause until next countdown cycle
+        isPaused = true;
       }
     }
 
     // 3. Countdown for next price update
     function updateCountdown() {
-      const countdownElem = document.getElementById('countdown');
-      countdownElem.textContent = `Next update in: ${timeLeft}s`;
+      if (!isPaused) {
+        const countdownElem = document.getElementById('countdown');
+        countdownElem.textContent = `Next update in: ${timeLeft}s`;
       
-      timeLeft--;
-      if (timeLeft < 0) {
-        // Time to update prices
-        updatePrices();
-        // Reset countdown
-        timeLeft = PRICE_UPDATE_INTERVAL;
+        timeLeft--;
+        if (timeLeft < 0) {
+          // Time to update prices
+          updatePrices();
+          // Reset countdown
+          timeLeft = PRICE_UPDATE_INTERVAL;
+        }
+      } else {
+        // If paused, we show "Updating paused" or keep the old countdown text
+        const countdownElem = document.getElementById('countdown');
+        countdownElem.textContent = 'Next update in: Paused';
       }
     }
 
