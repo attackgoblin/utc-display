@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
-  <title>Crypto Info (CoinGecko)</title>
+  <title>Crypto Info (CoinGecko) + UTC Time</title>
   <!-- 반응형 웹을 위한 meta 태그 -->
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <!-- Bootstrap CSS (CDN) -->
@@ -17,6 +17,8 @@
     .time-display {
       font-size: 1.25rem;
       font-weight: 500;
+      margin: 0;
+      /* 시각을 두 줄로 표시하기 위해 여백 조정 */
     }
   </style>
 </head>
@@ -26,8 +28,9 @@
     <div class="row">
       <div class="col-12 text-center">
         <h1>Crypto Market Info</h1>
-        <!-- 현지 시간 표시 영역 -->
+        <!-- 현지 시간, UTC 시간 표시 영역 -->
         <p class="time-display" id="local-time">로컬 시간 불러오는 중...</p>
+        <p class="time-display" id="utc-time">UTC 시간 불러오는 중...</p>
       </div>
     </div>
   </header>
@@ -78,12 +81,19 @@
 
   <!-- 메인 스크립트 -->
   <script>
-    // 1. 로컬 시간 표시 함수
-    function updateLocalTime() {
+    // 1. 로컬 시간 & UTC 시간 표시 함수
+    function updateTimes() {
       const now = new Date();
+      
+      // 현지 시간
       const localTimeElem = document.getElementById('local-time');
-      const dateString = now.toLocaleString(); 
-      localTimeElem.textContent = `현지 시간: ${dateString}`;
+      const localDateString = now.toLocaleString(); 
+      localTimeElem.textContent = `현지 시간: ${localDateString}`;
+
+      // UTC 시간
+      const utcTimeElem = document.getElementById('utc-time');
+      const utcString = now.toUTCString(); 
+      utcTimeElem.textContent = `UTC 시간: ${utcString}`;
     }
 
     // 2. CoinGecko API를 통해 BTC, DOGE 가격을 가져오는 함수
@@ -92,7 +102,6 @@
         // CoinGecko API (BTC, DOGE → USD)
         // https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,dogecoin&vs_currencies=usd
         const url = 'https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,dogecoin&vs_currencies=usd';
-
         const response = await fetch(url);
         const data = await response.json();
 
@@ -100,7 +109,6 @@
         const btcPrice = data.bitcoin.usd;
         const dogePrice = data.dogecoin.usd;
 
-        // DOM에 시세 표시
         document.getElementById('btc-price').textContent = `${btcPrice} USD`;
         document.getElementById('doge-price').textContent = `${dogePrice} USD`;
       } catch (error) {
@@ -109,11 +117,11 @@
     }
 
     // 페이지 로딩 시 최초 실행
-    updateLocalTime();
+    updateTimes();
     updatePrices();
 
-    // 1초마다 시간 갱신
-    setInterval(updateLocalTime, 1000);
+    // 1초마다 시간 갱신 (로컬 & UTC)
+    setInterval(updateTimes, 1000);
 
     // 5초마다 시세 재조회
     setInterval(updatePrices, 5000);
