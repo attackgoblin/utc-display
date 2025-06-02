@@ -2,23 +2,119 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
-  <title>UTC Time Display</title>
+  <title>Crypto Info</title>
+  <!-- 뷰포트 메타 태그: 모바일 반응형 필수 설정 -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <!-- Bootstrap CSS (CDN) -->
+  <link
+    rel="stylesheet"
+    href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
+  >
+  <style>
+    /* 추가 커스텀 스타일 (선택 사항) */
+    body {
+      margin-top: 30px;
+    }
+    .time-display {
+      font-size: 1.25rem;
+      font-weight: 500;
+    }
+  </style>
 </head>
 <body>
-  <h1>UTC Time</h1>
-  <div id="utc-time">Loading...</div>
+  <!-- 헤더 영역 -->
+  <header class="container mb-4">
+    <div class="row">
+      <div class="col-12 text-center">
+        <h1>Crypto Market Info</h1>
+        <p class="time-display" id="local-time">로컬 시간 불러오는 중...</p>
+      </div>
+    </div>
+  </header>
 
+  <!-- 메인 콘텐츠: 시세 카드 -->
+  <main class="container">
+    <div class="row justify-content-center">
+      <!-- BTC 카드 -->
+      <div class="col-12 col-md-6 mb-3">
+        <div class="card text-center">
+          <div class="card-header">
+            BTCUSDT
+          </div>
+          <div class="card-body">
+            <h5 class="card-title" id="btc-price">Loading...</h5>
+            <p class="card-text">Binance API로부터 BTC/USDT 시세를 가져옵니다.</p>
+          </div>
+        </div>
+      </div>
+      <!-- DOGE 카드 -->
+      <div class="col-12 col-md-6 mb-3">
+        <div class="card text-center">
+          <div class="card-header">
+            DOGEUSDT
+          </div>
+          <div class="card-body">
+            <h5 class="card-title" id="doge-price">Loading...</h5>
+            <p class="card-text">Binance API로부터 DOGE/USDT 시세를 가져옵니다.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- 푸터 (선택) -->
+  <footer class="container mt-4">
+    <div class="row">
+      <div class="col-12 text-center">
+        <p>© 2025 MyCryptoSite. All rights reserved.</p>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Bootstrap JS (CDN) -->
+  <script
+    src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"
+  ></script>
+
+  <!-- 메인 스크립트 -->
   <script>
-    function updateUtcTime() {
+    // 1. 로컬 시간 표시 함수
+    function updateLocalTime() {
       const now = new Date();
-      const utcString = now.toUTCString();
-      document.getElementById('utc-time').textContent = utcString;
+      const localTimeElem = document.getElementById('local-time');
+      // 예시 포맷: YYYY-MM-DD HH:mm:ss (또는 toLocaleString() 그대로 사용 가능)
+      const dateString = now.toLocaleString(); 
+      localTimeElem.textContent = `현지 시간: ${dateString}`;
     }
 
-    // 페이지 로드 시 1회 실행
-    updateUtcTime();
-    // 이후 1초 간격으로 갱신
-    setInterval(updateUtcTime, 1000);
+    // 2. 시세 업데이트 함수 (BTC, DOGE)
+    async function updatePrices() {
+      try {
+        // BTCUSDT 시세 불러오기
+        const btcResponse = await fetch('https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT');
+        const btcData = await btcResponse.json();
+
+        // DOGEUSDT 시세 불러오기
+        const dogeResponse = await fetch('https://api.binance.com/api/v3/ticker/price?symbol=DOGEUSDT');
+        const dogeData = await dogeResponse.json();
+
+        // DOM에 시세 표시
+        document.getElementById('btc-price').textContent = `${btcData.price} USDT`;
+        document.getElementById('doge-price').textContent = `${dogeData.price} USDT`;
+      } catch (error) {
+        console.error('API 호출 중 에러 발생:', error);
+      }
+    }
+
+    // 페이지 로딩 시 즉시 실행
+    updateLocalTime();
+    updatePrices();
+
+    // 이후 1초마다 시간 업데이트
+    setInterval(updateLocalTime, 1000);
+
+    // 5초마다 시세 재조회
+    setInterval(updatePrices, 5000);
   </script>
 </body>
 </html>
