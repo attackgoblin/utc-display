@@ -17,9 +17,11 @@
     window.dataLayer = window.dataLayer || [];
     function gtag(){dataLayer.push(arguments);}
     gtag('js', new Date());
-
     gtag('config', 'G-M91Z44K3BM');
   </script>
+
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
   <style>
     /* 전체 배경을 검은색, 기본 텍스트는 밝게 */
@@ -75,6 +77,19 @@
     .change-negative {
       color: #ff6347;
     }
+
+    /* 차트를 담는 래퍼 */
+    .sparkline-container {
+      width: 100%;
+      height: 80px;      /* 고정 높이 */
+      position: relative; 
+      /* position: relative를 쓰면 내부 canvas가 이를 기준으로 100% 차지 */
+    }
+    .sparkline-container canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
   </style>
 </head>
 <body>
@@ -106,6 +121,10 @@
           <div class="card-body">
             <h5 class="card-title" id="btc-price">Loading...</h5>
             <p class="card-text" id="btc-change">24h Change: -</p>
+            <!-- 작은 라인 차트 래퍼 -->
+            <div class="sparkline-container">
+              <canvas id="btc-chart"></canvas>
+            </div>
           </div>
         </div>
       </div>
@@ -118,6 +137,10 @@
           <div class="card-body">
             <h5 class="card-title" id="doge-price">Loading...</h5>
             <p class="card-text" id="doge-change">24h Change: -</p>
+            <!-- 작은 라인 차트 래퍼 -->
+            <div class="sparkline-container">
+              <canvas id="doge-chart"></canvas>
+            </div>
           </div>
         </div>
       </div>
@@ -141,22 +164,25 @@
   <!-- Main Script -->
   <script>
     // Update intervals
-    const PRICE_UPDATE_INTERVAL = 10; // seconds (for demonstration/test)
+    const PRICE_UPDATE_INTERVAL = 10; // seconds (for demo)
     let timeLeft = PRICE_UPDATE_INTERVAL;
 
     let lastSuccessfulUpdate = null;
     let isPaused = false; // if API fails, we pause updates until next attempt
 
-    // 1. Display Local and UTC time
+    // Chart.js 인스턴스 보관
+    let btcChartInstance = null;
+    let dogeChartInstance = null;
+
+    /************************************************************
+     * 1. Display Local and UTC time
+     ************************************************************/
     function updateTimes() {
       const now = new Date();
 
       // Local time (12시간제, am/pm)
       const localTimeElem = document.getElementById('local-time');
-      const localOptions = {
-        hour12: true
-      };
-      // 예: 9/17/2025, 2:05:06 PM
+      const localOptions = { hour12: true };
       const localDateString = now.toLocaleString('en-US', localOptions);
       localTimeElem.textContent = `Local Time: ${localDateString}`;
 
@@ -165,34 +191,34 @@
       utcTimeElem.textContent = `UTC Time: ${now.toUTCString()}`;
     }
 
-    // 2. Fetch BTC, DOGE prices + 24h change (CoinGecko)
+    /************************************************************
+     * 2. Fetch BTC, DOGE prices + 24h change (CoinGecko)
+     ************************************************************/
     async function updatePrices() {
       try {
         const url = 'https://api.coingecko.com/api/v3/simple/price?' +
           'ids=bitcoin,dogecoin&vs_currencies=usd&include_24hr_change=true';
         const response = await fetch(url);
-        
+
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);
         }
 
         const data = await response.json();
-        // data example:
-        // {
+        // e.g. {
         //   "bitcoin": {"usd": 27300, "usd_24h_change": 2.34},
         //   "dogecoin": {"usd": 0.07, "usd_24h_change": -1.25}
         // }
 
-        // BTC: 정수, 3자리 쉼표
+        // BTC
         const btcRawPrice = data.bitcoin.usd;
-        // 세자리 마다 쉼표, 소수점 이하 제거
         const btcPrice = Number(btcRawPrice).toLocaleString('en-US', {
           minimumFractionDigits: 0,
           maximumFractionDigits: 0
         });
         const btcChange = data.bitcoin.usd_24h_change.toFixed(2);
 
-        // DOGE: 기존대로 소수점 6자리
+        // DOGE
         const dogeRawPrice = data.dogecoin.usd;
         const dogePrice = Number(dogeRawPrice).toFixed(6);
         const dogeChange = data.dogecoin.usd_24h_change.toFixed(2);
@@ -201,7 +227,7 @@
         document.getElementById('btc-price').textContent = btcPrice;
         document.getElementById('doge-price').textContent = dogePrice;
 
-        // 24h Change (positive -> green, negative -> red)
+        // 24h Change color
         const btcChangeElem = document.getElementById('btc-change');
         btcChangeElem.textContent = `24h Change: ${btcChange}%`;
         if (btcChange >= 0) {
@@ -222,50 +248,128 @@
           dogeChangeElem.classList.remove('change-positive');
         }
 
-        // Successful update time
+        // Update sparkline
+        await Promise.all([
+          updateSparkline('bitcoin', 'btc-chart', btcChartInstance, 'btcChartInstance'),
+          updateSparkline('dogecoin', 'doge-chart', dogeChartInstance, 'dogeChartInstance')
+        ]);
+
+        // Last updated time
         lastSuccessfulUpdate = new Date();
         const updateStatusElem = document.getElementById('update-status');
         updateStatusElem.textContent = `Last updated: ${lastSuccessfulUpdate.toLocaleTimeString('en-US', { hour12: true })}`;
 
-        // Resume if previously paused
         if (isPaused) {
           isPaused = false;
         }
       } catch (error) {
         console.error('API Error:', error);
-        // Show error message
-        const updateStatusElem = document.getElementById('update-status');
-        updateStatusElem.textContent = 'Update paused: API Error';
+        document.getElementById('update-status').textContent = 'Update paused: API Error';
         isPaused = true;
       }
     }
 
-    // 3. Countdown for next price update
+    /************************************************************
+     * 3. Fetch market_chart data & update sparkline
+     ************************************************************/
+    async function updateSparkline(coinId, canvasId, chartInstance, chartInstanceName) {
+      try {
+        // 24h 차트
+        const chartUrl = `https://api.coingecko.com/api/v3/coins/${coinId}/market_chart?vs_currency=usd&days=1`;
+        const res = await fetch(chartUrl);
+        if (!res.ok) {
+          throw new Error(`Market chart API error: ${res.status}`);
+        }
+        const chartData = await res.json();
+
+        const prices = chartData.prices;
+        // 12개 포인트로 추출
+        let step = Math.floor(prices.length / 12);
+        if (step < 1) step = 1; // 최소 1 보장
+
+        const labels = [];
+        const values = [];
+
+        for (let i = 0; i < prices.length; i += step) {
+          const [timestamp, price] = prices[i];
+          const date = new Date(timestamp);
+          // "HH:mm" (12h)
+          const label = date.toLocaleTimeString('en-US', {
+            hour12: true, hour: '2-digit', minute: '2-digit'
+          });
+          labels.push(label);
+          values.push(price);
+        }
+
+        if (chartInstance) {
+          // 기존 차트 업데이트
+          chartInstance.data.labels = labels;
+          chartInstance.data.datasets[0].data = values;
+          chartInstance.update();
+        } else {
+          // 새 차트 생성
+          const ctx = document.getElementById(canvasId).getContext('2d');
+          const newChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+              labels,
+              datasets: [{
+                data: values,
+                borderColor: '#FFD700',
+                borderWidth: 1.5,
+                fill: false
+              }]
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              scales: {
+                x: { display: false },
+                y: { display: false }
+              },
+              plugins: {
+                legend: { display: false },
+                tooltip: { enabled: false }
+              }
+            }
+          });
+          // 전역 변수에 저장
+          window[chartInstanceName] = newChart;
+        }
+      } catch (error) {
+        console.error(`Sparkline error for ${coinId}:`, error);
+      }
+    }
+
+    /************************************************************
+     * 4. Countdown for next price update
+     ************************************************************/
     function updateCountdown() {
       if (!isPaused) {
         const countdownElem = document.getElementById('countdown');
         countdownElem.textContent = `Next update in: ${timeLeft}s`;
-      
+
         timeLeft--;
         if (timeLeft < 0) {
           updatePrices();
           timeLeft = PRICE_UPDATE_INTERVAL;
         }
       } else {
-        // Paused state
-        const countdownElem = document.getElementById('countdown');
-        countdownElem.textContent = 'Next update in: Paused';
+        document.getElementById('countdown').textContent = 'Next update in: Paused';
       }
     }
 
-    // Initial calls
+    /************************************************************
+     * 5. Initial calls & intervals
+     ************************************************************/
+    // 초기 실행
     updateTimes();
     updatePrices();
 
-    // Update local & UTC time every second
+    // 시간(로컬/UTC) 1초마다 업데이트
     setInterval(updateTimes, 1000);
 
-    // Countdown every second, triggers update when timeLeft < 0
+    // 카운트다운 1초마다 진행
     setInterval(updateCountdown, 1000);
   </script>
 </body>
