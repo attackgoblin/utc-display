@@ -11,8 +11,35 @@
     href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
   >
   <style>
+    /* 전체 배경을 검은색, 기본 텍스트는 밝게 */
     body {
+      background-color: #000;
+      color: #fff; /* 기본 텍스트 색상(흰색 계열) */
       margin-top: 30px;
+    }
+
+    /* 헤더/타이틀 등에 사용하는 골드 컬러 */
+    .gold {
+      color: #FFD700;
+    }
+
+    /* 카드 디자인 (검은 배경 + 골드 테두리) */
+    .card {
+      background-color: #000;
+      border: 1px solid #FFD700;
+    }
+    .card-header {
+      background-color: #000;
+      color: #FFD700;
+      border-bottom: 1px solid #FFD700;
+    }
+    .card-body {
+      color: #FFD700;
+    }
+
+    /* 타이틀, 시간 등 주요 정보 스타일 */
+    h1 {
+      color: #FFD700;
     }
     .time-info {
       font-size: 1rem;
@@ -21,19 +48,21 @@
     }
     .countdown {
       font-size: 0.9rem;
-      color: #6c757d; /* Bootstrap muted text color */
+      color: #FFD700;
     }
     .status-text {
       font-size: 0.9rem;
       font-style: italic;
       margin: 0;
-      color: #6c757d;
+      color: #ccc;
     }
+
+    /* 양수 변동률 = 초록, 음수 변동률 = 빨강 */
     .change-positive {
-      color: green;
+      color: #00fa9a;
     }
     .change-negative {
-      color: red;
+      color: #ff6347;
     }
   </style>
 </head>
@@ -42,7 +71,7 @@
   <header class="container mb-4">
     <div class="row">
       <div class="col-12 text-center">
-        <h1>Crypto Info</h1>
+        <h1 class="gold">Crypto Info</h1>
         <!-- Time display (Local + UTC) -->
         <p class="time-info" id="local-time">Local Time: -</p>
         <p class="time-info" id="utc-time">UTC Time: -</p>
@@ -88,7 +117,7 @@
   <footer class="container mt-4">
     <div class="row">
       <div class="col-12 text-center">
-        <p>© 2025 MyCryptoSite</p>
+        <p class="gold">© 2025 MyCryptoSite</p>
       </div>
     </div>
   </footer>
@@ -101,7 +130,7 @@
   <!-- Main Script -->
   <script>
     // Update intervals
-    const PRICE_UPDATE_INTERVAL = 10; // in seconds (caution: too short -> 429 error risk)
+    const PRICE_UPDATE_INTERVAL = 10; // seconds (for demonstration/test)
     let timeLeft = PRICE_UPDATE_INTERVAL;
 
     let lastSuccessfulUpdate = null;
@@ -110,24 +139,28 @@
     // 1. Display Local and UTC time
     function updateTimes() {
       const now = new Date();
-      // Local time
+
+      // Local time (12시간제, am/pm)
       const localTimeElem = document.getElementById('local-time');
-      localTimeElem.textContent = `Local Time: ${now.toLocaleString()}`;
+      const localOptions = {
+        hour12: true
+      };
+      // 예: 9/17/2025, 2:05:06 PM
+      const localDateString = now.toLocaleString('en-US', localOptions);
+      localTimeElem.textContent = `Local Time: ${localDateString}`;
 
       // UTC time
       const utcTimeElem = document.getElementById('utc-time');
       utcTimeElem.textContent = `UTC Time: ${now.toUTCString()}`;
     }
 
-    // 2. Fetch BTC, DOGE prices and 24h change from CoinGecko
+    // 2. Fetch BTC, DOGE prices + 24h change (CoinGecko)
     async function updatePrices() {
       try {
-        // Include 24h change
         const url = 'https://api.coingecko.com/api/v3/simple/price?' +
-                    'ids=bitcoin,dogecoin&vs_currencies=usd&include_24hr_change=true';
+          'ids=bitcoin,dogecoin&vs_currencies=usd&include_24hr_change=true';
         const response = await fetch(url);
         
-        // If the server returns an error status (e.g. 429), response.ok will be false
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);
         }
@@ -138,17 +171,26 @@
         //   "bitcoin": {"usd": 27300, "usd_24h_change": 2.34},
         //   "dogecoin": {"usd": 0.07, "usd_24h_change": -1.25}
         // }
-        const btcPrice = data.bitcoin.usd.toFixed(4);
+
+        // BTC: 정수, 3자리 쉼표
+        const btcRawPrice = data.bitcoin.usd;
+        // 세자리 마다 쉼표, 소수점 이하 제거
+        const btcPrice = Number(btcRawPrice).toLocaleString('en-US', {
+          minimumFractionDigits: 0,
+          maximumFractionDigits: 0
+        });
         const btcChange = data.bitcoin.usd_24h_change.toFixed(2);
 
-        const dogePrice = data.dogecoin.usd.toFixed(6);
+        // DOGE: 기존대로 소수점 6자리
+        const dogeRawPrice = data.dogecoin.usd;
+        const dogePrice = Number(dogeRawPrice).toFixed(6);
         const dogeChange = data.dogecoin.usd_24h_change.toFixed(2);
 
-        // Update DOM
+        // DOM update
         document.getElementById('btc-price').textContent = btcPrice;
         document.getElementById('doge-price').textContent = dogePrice;
 
-        // 24h 변동률 표시 (+/- 구분)
+        // 24h Change (positive -> green, negative -> red)
         const btcChangeElem = document.getElementById('btc-change');
         btcChangeElem.textContent = `24h Change: ${btcChange}%`;
         if (btcChange >= 0) {
@@ -169,13 +211,12 @@
           dogeChangeElem.classList.remove('change-positive');
         }
 
-        // Update lastSuccessfulUpdate
+        // Successful update time
         lastSuccessfulUpdate = new Date();
-        // Reflect last update time
         const updateStatusElem = document.getElementById('update-status');
-        updateStatusElem.textContent = `Last updated: ${lastSuccessfulUpdate.toLocaleTimeString()}`;
-        
-        // If previously paused due to error, resume
+        updateStatusElem.textContent = `Last updated: ${lastSuccessfulUpdate.toLocaleTimeString('en-US', { hour12: true })}`;
+
+        // Resume if previously paused
         if (isPaused) {
           isPaused = false;
         }
@@ -184,7 +225,6 @@
         // Show error message
         const updateStatusElem = document.getElementById('update-status');
         updateStatusElem.textContent = 'Update paused: API Error';
-        // Pause until next countdown cycle
         isPaused = true;
       }
     }
@@ -197,13 +237,11 @@
       
         timeLeft--;
         if (timeLeft < 0) {
-          // Time to update prices
           updatePrices();
-          // Reset countdown
           timeLeft = PRICE_UPDATE_INTERVAL;
         }
       } else {
-        // If paused, we show "Updating paused" or keep the old countdown text
+        // Paused state
         const countdownElem = document.getElementById('countdown');
         countdownElem.textContent = 'Next update in: Paused';
       }
