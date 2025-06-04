@@ -99,6 +99,11 @@
       color: #ffa500;
       font-weight: 600;
     }
+
+    /* 오버라이드: text-muted가 너무 어두우므로 밝게 조정 */
+    .text-muted {
+      color: #ccc !important; /* 더 밝은 색상으로 변경 */
+    }
   </style>
 </head>
 
@@ -136,7 +141,7 @@
             <!-- ML Market State -->
             <p class="mt-2">
               ML Market State:
-              <span id="btc-ml-state" class="">-</span>
+              <span id="btc-ml-state">-</span>
             </p>
             <p class="text-muted small mb-1" id="btc-ml-updated-utc">
               Updated (UTC): -
@@ -164,7 +169,7 @@
             <!-- ML Market State -->
             <p class="mt-2">
               ML Market State:
-              <span id="doge-ml-state" class="">-</span>
+              <span id="doge-ml-state">-</span>
             </p>
             <p class="text-muted small mb-1" id="doge-ml-updated-utc">
               Updated (UTC): -
@@ -218,7 +223,6 @@
     // 2. Fetch prices + 24h change & volume
     async function updatePrices() {
       try {
-        // include_24hr_vol 파라미터 추가
         const url = 'https://api.coingecko.com/api/v3/simple/price?' +
           'ids=bitcoin,dogecoin&vs_currencies=usd' +
           '&include_24hr_change=true' +
@@ -366,9 +370,7 @@
       }
     }
 
-    // -------------------------------------------
     // (NEW) Fetch ML prediction.json & Update UI
-    // -------------------------------------------
     async function fetchPredictionJson() {
       try {
         const resp = await fetch('./prediction.json');
@@ -377,8 +379,8 @@
 
         // data example:
         // {
-        //   "BTCUSDT": { "final": "상승", "updated_at": "2025-10-05T08:00:00Z" },
-        //   "DOGEUSDT": { "final": "횡보", "updated_at": "2025-10-05T08:01:00Z" }
+        //   "BTCUSDT": { "final": "상승", "updated_at": "2025-06-04T22:07:27.444087+09:00" },
+        //   "DOGEUSDT": { "final": "횡보", "updated_at": "2025-06-04T22:07:27.444087+09:00" }
         // }
 
         // BTC
@@ -394,55 +396,47 @@
           const utcTime = data["DOGEUSDT"].updated_at;
           updateMLState("doge", finalLabel, utcTime);
         }
-
       } catch (error) {
         console.error("ML Prediction load error:", error);
       }
     }
 
     function updateMLState(coinPrefix, finalLabel, updatedAtUTC) {
-      // 예: coinPrefix="btc", finalLabel="상승", updatedAtUTC="2025-10-05T08:00:00Z"
-
-      // 라벨 요소
       const labelElem = document.getElementById(`${coinPrefix}-ml-state`);
-      labelElem.textContent = finalLabel;
+      labelElem.textContent = finalLabel || '-';
 
-      // 라벨 색상
+      // 라벨 색상 class
       labelElem.classList.remove("ml-state-up","ml-state-down","ml-state-flat","ml-state-other");
       if (finalLabel === "상승") labelElem.classList.add("ml-state-up");
       else if (finalLabel === "하락") labelElem.classList.add("ml-state-down");
       else if (finalLabel === "횡보") labelElem.classList.add("ml-state-flat");
       else labelElem.classList.add("ml-state-other");
 
-      // Updated (UTC)
       const utcElem = document.getElementById(`${coinPrefix}-ml-updated-utc`);
-      if (updatedAtUTC) {
-        const utcStr = updatedAtUTC.replace("T"," ").replace("Z"," UTC");
-        utcElem.textContent = `Updated (UTC): ${utcStr}`;
-      } else {
-        utcElem.textContent = "Updated (UTC): -";
-      }
-
-      // Updated (Local)
       const localElem = document.getElementById(`${coinPrefix}-ml-updated-local`);
-      if (updatedAtUTC) {
-        const dateObj = new Date(updatedAtUTC);
-        const localStr = dateObj.toLocaleString();
-        localElem.textContent = `Updated (Local): ${localStr}`;
-      } else {
+      if (!updatedAtUTC) {
+        utcElem.textContent = "Updated (UTC): -";
         localElem.textContent = "Updated (Local): -";
+        return;
       }
+      // UTC 표시
+      const utcStr = updatedAtUTC.replace("T"," ").replace("Z"," UTC");
+      utcElem.textContent = `Updated (UTC): ${utcStr}`;
+
+      // Local 표시
+      const dateObj = new Date(updatedAtUTC);
+      localElem.textContent = `Updated (Local): ${dateObj.toLocaleString()}`;
     }
 
     // 5. Initial calls
     updateTimes();
     updatePrices();
-    fetchPredictionJson(); // 추가: ML 데이터 불러오기
+    fetchPredictionJson(); // ML 데이터 가져와 반영
 
     // Time & countdown intervals
     setInterval(updateTimes, 1000);        // 1초마다 local/UTC
     setInterval(updateCountdown, 1000);    // 1초마다 카운트다운
-    // (옵션) ML 예측 데이터도 주기적으로 갱신하고 싶다면, setInterval(fetchPredictionJson, 60000);
+    // 필요시 setInterval(fetchPredictionJson, 60000);  // 1분마다 ML 결과 갱신
   </script>
 </body>
 </html>
