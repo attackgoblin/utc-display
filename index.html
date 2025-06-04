@@ -407,9 +407,9 @@
 
       // 라벨 색상 class
       labelElem.classList.remove("ml-state-up","ml-state-down","ml-state-flat","ml-state-other");
-      if (finalLabel === "상승") labelElem.classList.add("ml-state-up");
-      else if (finalLabel === "하락") labelElem.classList.add("ml-state-down");
-      else if (finalLabel === "횡보") labelElem.classList.add("ml-state-flat");
+      if (finalLabel === "Up") labelElem.classList.add("ml-state-up");
+      else if (finalLabel === "Down") labelElem.classList.add("ml-state-down");
+      else if (finalLabel === "Flat") labelElem.classList.add("ml-state-flat");
       else labelElem.classList.add("ml-state-other");
 
       const utcElem = document.getElementById(`${coinPrefix}-ml-updated-utc`);
