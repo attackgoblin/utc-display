@@ -81,6 +81,24 @@
       width: 100%;
       height: 100%;
     }
+
+    /* ML 라벨 색상 예시 */
+    .ml-state-up {
+      color: #00fa9a;
+      font-weight: 600;
+    }
+    .ml-state-down {
+      color: #ff6347;
+      font-weight: 600;
+    }
+    .ml-state-flat {
+      color: #ccc;
+      font-weight: 600;
+    }
+    .ml-state-other {
+      color: #ffa500;
+      font-weight: 600;
+    }
   </style>
 </head>
 
@@ -106,12 +124,26 @@
         <div class="card text-center">
           <div class="card-header">BTC</div>
           <div class="card-body">
+            <!-- 시세 -->
             <h5 class="card-title" id="btc-price">Loading...</h5>
             <p class="card-text" id="btc-change">24h Change: -</p>
             <p class="card-text" id="btc-volume">24h Volume: -</p>
+            <!-- 스파크라인 차트 -->
             <div class="sparkline-container">
               <canvas id="btc-chart"></canvas>
             </div>
+
+            <!-- ML Market State -->
+            <p class="mt-2">
+              ML Market State:
+              <span id="btc-ml-state" class="">-</span>
+            </p>
+            <p class="text-muted small mb-1" id="btc-ml-updated-utc">
+              Updated (UTC): -
+            </p>
+            <p class="text-muted small" id="btc-ml-updated-local">
+              Updated (Local): -
+            </p>
           </div>
         </div>
       </div>
@@ -120,12 +152,26 @@
         <div class="card text-center">
           <div class="card-header">DOGE</div>
           <div class="card-body">
+            <!-- 시세 -->
             <h5 class="card-title" id="doge-price">Loading...</h5>
             <p class="card-text" id="doge-change">24h Change: -</p>
             <p class="card-text" id="doge-volume">24h Volume: -</p>
+            <!-- 스파크라인 차트 -->
             <div class="sparkline-container">
               <canvas id="doge-chart"></canvas>
             </div>
+
+            <!-- ML Market State -->
+            <p class="mt-2">
+              ML Market State:
+              <span id="doge-ml-state" class="">-</span>
+            </p>
+            <p class="text-muted small mb-1" id="doge-ml-updated-utc">
+              Updated (UTC): -
+            </p>
+            <p class="text-muted small" id="doge-ml-updated-local">
+              Updated (Local): -
+            </p>
           </div>
         </div>
       </div>
@@ -256,7 +302,7 @@
         const chartData = await res.json();
         const prices = chartData.prices;
         let step = Math.floor(prices.length / 12);
-        if (step < 1) step = 1; // 최소 1
+        if (step < 1) step = 1;
 
         const labels = [];
         const values = [];
@@ -271,7 +317,6 @@
         }
 
         const ctx = document.getElementById(canvasId).getContext('2d');
-        // 기존 차트 있으면 destroy -> 새로 생성
         if (chartInstance) {
           chartInstance.destroy();
         }
@@ -301,7 +346,6 @@
           }
         });
 
-        // 전역 변수에 저장
         window[chartInstanceName] = newChart;
       } catch (error) {
         console.error(`Sparkline error for ${coinId}:`, error);
@@ -322,13 +366,83 @@
       }
     }
 
+    // -------------------------------------------
+    // (NEW) Fetch ML prediction.json & Update UI
+    // -------------------------------------------
+    async function fetchPredictionJson() {
+      try {
+        const resp = await fetch('./prediction.json');
+        if (!resp.ok) throw new Error(`prediction.json load error: ${resp.status}`);
+        const data = await resp.json();
+
+        // data example:
+        // {
+        //   "BTCUSDT": { "final": "상승", "updated_at": "2025-10-05T08:00:00Z" },
+        //   "DOGEUSDT": { "final": "횡보", "updated_at": "2025-10-05T08:01:00Z" }
+        // }
+
+        // BTC
+        if (data["BTCUSDT"]) {
+          const finalLabel = data["BTCUSDT"].final;
+          const utcTime = data["BTCUSDT"].updated_at;
+          updateMLState("btc", finalLabel, utcTime);
+        }
+
+        // DOGE
+        if (data["DOGEUSDT"]) {
+          const finalLabel = data["DOGEUSDT"].final;
+          const utcTime = data["DOGEUSDT"].updated_at;
+          updateMLState("doge", finalLabel, utcTime);
+        }
+
+      } catch (error) {
+        console.error("ML Prediction load error:", error);
+      }
+    }
+
+    function updateMLState(coinPrefix, finalLabel, updatedAtUTC) {
+      // 예: coinPrefix="btc", finalLabel="상승", updatedAtUTC="2025-10-05T08:00:00Z"
+
+      // 라벨 요소
+      const labelElem = document.getElementById(`${coinPrefix}-ml-state`);
+      labelElem.textContent = finalLabel;
+
+      // 라벨 색상
+      labelElem.classList.remove("ml-state-up","ml-state-down","ml-state-flat","ml-state-other");
+      if (finalLabel === "상승") labelElem.classList.add("ml-state-up");
+      else if (finalLabel === "하락") labelElem.classList.add("ml-state-down");
+      else if (finalLabel === "횡보") labelElem.classList.add("ml-state-flat");
+      else labelElem.classList.add("ml-state-other");
+
+      // Updated (UTC)
+      const utcElem = document.getElementById(`${coinPrefix}-ml-updated-utc`);
+      if (updatedAtUTC) {
+        const utcStr = updatedAtUTC.replace("T"," ").replace("Z"," UTC");
+        utcElem.textContent = `Updated (UTC): ${utcStr}`;
+      } else {
+        utcElem.textContent = "Updated (UTC): -";
+      }
+
+      // Updated (Local)
+      const localElem = document.getElementById(`${coinPrefix}-ml-updated-local`);
+      if (updatedAtUTC) {
+        const dateObj = new Date(updatedAtUTC);
+        const localStr = dateObj.toLocaleString();
+        localElem.textContent = `Updated (Local): ${localStr}`;
+      } else {
+        localElem.textContent = "Updated (Local): -";
+      }
+    }
+
     // 5. Initial calls
     updateTimes();
     updatePrices();
+    fetchPredictionJson(); // 추가: ML 데이터 불러오기
 
     // Time & countdown intervals
     setInterval(updateTimes, 1000);        // 1초마다 local/UTC
     setInterval(updateCountdown, 1000);    // 1초마다 카운트다운
+    // (옵션) ML 예측 데이터도 주기적으로 갱신하고 싶다면, setInterval(fetchPredictionJson, 60000);
   </script>
 </body>
 </html>
